@@ -72,6 +72,20 @@ async def delete(
     _=Depends(get_current_user),
 ) -> dict:
     await qbt.delete(torrent_hash, delete_files=delete_files)
+
+    # Deleting a torrent here (vs. cancelling via DELETE /requests/{id})
+    # left the associated Request stuck showing DOWNLOADING/SEARCHING
+    # forever, since nothing else ever clears it — the movie's page then
+    # permanently refuses new download attempts. Clean it up here too so
+    # both delete paths leave the title back in a requestable state.
+    with get_session() as session:
+        request = session.exec(
+            select(MediaRequest).where(MediaRequest.torrent_hash == torrent_hash)
+        ).first()
+        if request is not None:
+            session.delete(request)
+            session.commit()
+
     return {"ok": True}
 
 
