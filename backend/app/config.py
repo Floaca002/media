@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     qbittorrent_password: str
     qbittorrent_category_movies: str = "vault-movies"
     qbittorrent_category_tv: str = "vault-tv"
+    # Distinct categories Radarr/Sonarr use for their own qBittorrent
+    # download client (set during their one-time setup) — kept separate
+    # from the two above so manual magnet pastes and Arr-driven downloads
+    # never collide, but the Downloads tab needs to know about both.
+    qbittorrent_category_radarr: str = "radarr"
+    qbittorrent_category_sonarr: str = "sonarr"
 
     # Jellyfin
     jellyfin_url: str

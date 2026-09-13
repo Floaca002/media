@@ -17,10 +17,19 @@ router = APIRouter(prefix="/downloads", tags=["downloads"])
 
 
 async def _snapshot(qbt: QBittorrentClient, settings: Settings) -> list[DownloadOut]:
-    categories = [settings.qbittorrent_category_movies, settings.qbittorrent_category_tv]
+    categories = [
+        settings.qbittorrent_category_movies,
+        settings.qbittorrent_category_tv,
+        settings.qbittorrent_category_radarr,
+        settings.qbittorrent_category_sonarr,
+    ]
     raw: list[dict] = []
+    seen_hashes: set[str] = set()
     for category in categories:
-        raw.extend(await qbt.list_torrents(category=category))
+        for torrent in await qbt.list_torrents(category=category):
+            if torrent["hash"] not in seen_hashes:
+                seen_hashes.add(torrent["hash"])
+                raw.append(torrent)
 
     with get_session() as session:
         hash_to_request_id = {
