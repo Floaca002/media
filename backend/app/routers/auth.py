@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+import os
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
 
@@ -91,25 +95,58 @@ async def request_password_reset(
 
 @router.post("/reset-password")
 async def reset_password(
-    body: ResetPasswordBody, jellyfin: JellyfinClient = Depends(get_jellyfin)
+    body: ResetPasswordBody,
+    jellyfin: JellyfinClient = Depends(get_jellyfin),
+    settings: Settings = Depends(get_settings),
 ) -> dict:
+    """
+    Validates the PIN by reading the same file Jellyfin wrote it to,
+    directly, rather than calling Jellyfin's own PIN-redemption endpoint
+    (whose exact path/behavior isn't reliable across Jellyfin versions).
+    This doesn't weaken the security model: the PIN is still only ever
+    knowable to someone who can read it off the server's filesystem, and
+    the human still has to fetch and submit it manually.
+    """
+    container_prefix = settings.jellyfin_container_config_path
+    if not body.pin_file.startswith(container_prefix):
+        raise HTTPException(status_code=400, detail="Invalid reset request")
+
+    mount_root = os.path.realpath(settings.jellyfin_config_mount_path)
+    relative = body.pin_file[len(container_prefix) :].lstrip("/")
+    local_path = os.path.realpath(os.path.join(mount_root, relative))
+    if not local_path.startswith(mount_root + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid reset request")
+
     try:
-        redeemed = await jellyfin.redeem_password_reset_pin(body.pin)
+        with open(local_path) as f:
+            pin_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Reset PIN file not found or expired") from exc
+
+    if pin_data.get("Pin") != body.pin or pin_data.get("UserName", "").lower() != body.username.lower():
+        raise HTTPException(status_code=400, detail="Invalid PIN")
+
+    expiration = pin_data.get("ExpirationDate")
+    if expiration:
+        try:
+            expires_at = datetime.fromisoformat(expiration.replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) > expires_at:
+                raise HTTPException(status_code=400, detail="This reset PIN has expired")
+        except ValueError:
+            pass  # unparseable date shouldn't block an otherwise-valid reset
+
+    try:
+        user = await jellyfin.find_user_by_name(body.username)
     except JellyfinUnavailableError as exc:
         raise HTTPException(status_code=502, detail="Jellyfin unavailable") from exc
-
-    if not redeemed.get("Success"):
-        raise HTTPException(status_code=400, detail="Invalid or expired PIN")
-
-    reset_usernames = {u.lower() for u in redeemed.get("UsersReset", [])}
-    if body.username.lower() not in reset_usernames:
-        raise HTTPException(
-            status_code=400, detail="Username does not match the account this PIN was issued for"
-        )
-
-    user = await jellyfin.find_user_by_name(body.username)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
     await jellyfin.set_password_as_admin(user["Id"], body.new_password)
+
+    try:
+        os.remove(local_path)
+    except OSError:
+        pass  # best-effort: a PIN that fails to delete just expires normally later
+
     return {"ok": True}

@@ -26,6 +26,7 @@ class RequestPasswordResetResponse(BaseModel):
 class ResetPasswordBody(BaseModel):
     username: str
     pin: str
+    pin_file: str
     new_password: str
 
 

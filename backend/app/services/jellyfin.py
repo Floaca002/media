@@ -109,16 +109,6 @@ class JellyfinClient:
         response.raise_for_status()
         return response.json()
 
-    async def redeem_password_reset_pin(self, pin: str) -> dict[str, Any]:
-        """POST /Users/ForgotPassword/Pin — validates the PIN and clears the account's password."""
-        response = await self._client.post(
-            "/Users/ForgotPassword/Pin",
-            headers=self._auth_header(),
-            json={"Pin": pin},
-        )
-        response.raise_for_status()
-        return response.json()
-
     async def set_password(self, user_id: str, user_token: str, new_password: str) -> None:
         """POST /Users/{id}/Password as the user themselves (requires their current password)."""
         await self._request(

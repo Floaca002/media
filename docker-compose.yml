@@ -39,6 +39,13 @@ services:
     volumes:
       - media-downloads:/data/downloads
       - media-library:/data/media
+      # Read-only access to Jellyfin's config volume so the backend can read
+      # the one-time password-reset PIN file it writes there. See
+      # app/routers/auth.py — the human must still retrieve and submit the
+      # PIN themselves, so this doesn't weaken the reset flow's security
+      # property (proof of real server access), it just removes a
+      # dependency on Jellyfin's own PIN-redemption API endpoint.
+      - jellyfin-config:/jellyfin-config:ro
     depends_on:
       - qbittorrent
       - jellyfin

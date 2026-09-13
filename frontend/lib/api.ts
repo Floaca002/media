@@ -60,10 +60,10 @@ export const api = {
       body: JSON.stringify({ username }),
     }),
 
-  resetPassword: (username: string, pin: string, newPassword: string) =>
+  resetPassword: (username: string, pin: string, pinFile: string, newPassword: string) =>
     request("/auth/reset-password", {
       method: "POST",
-      body: JSON.stringify({ username, pin, new_password: newPassword }),
+      body: JSON.stringify({ username, pin, pin_file: pinFile, new_password: newPassword }),
     }),
 
   trending: (mediaType: "all" | "movie" | "tv" = "all") =>

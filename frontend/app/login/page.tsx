@@ -53,10 +53,14 @@ export default function LoginPage() {
 
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
+    if (!pinFile) {
+      setError("Missing reset session — go back and request a new PIN.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      await api.resetPassword(username, pin, newPassword);
+      await api.resetPassword(username, pin, pinFile, newPassword);
       setInfo("Password reset. You can sign in with your new password now.");
       setMode("login");
       setPassword("");

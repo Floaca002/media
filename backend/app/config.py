@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     jellyfin_device_name: str = "vault-backend"
     jellyfin_device_id: str = "vault-backend-001"
     jellyfin_version: str = "1.0.0"
+    # Jellyfin reports PinFile paths relative to its own filesystem view
+    # (jellyfin_container_config_path); we need to translate that to where
+    # the same volume is mounted read-only inside this container.
+    jellyfin_container_config_path: str = "/config"
+    jellyfin_config_mount_path: str = "/jellyfin-config"
 
     # Media paths
     downloads_complete_path: str = "/data/downloads/complete"
