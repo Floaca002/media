@@ -132,18 +132,22 @@ class JellyfinClient:
 
     async def set_password_as_admin(self, user_id: str, new_password: str) -> None:
         """
-        POST /Users/{id}/Password using the server admin API key with
-        ResetPassword=True — the same call Jellyfin's own dashboard makes
-        when an admin resets someone's password. Avoids ever needing to
-        authenticate as the target user with a blank password, which
-        Jellyfin's own security policy can refuse depending on the account
-        (notably for administrators).
+        POST /Users/{id}/Password using the server admin API key. Fields are
+        CurrentPw/NewPw (confirmed against Jellyfin's own web client via its
+        network traffic) — CurrentPw is left blank since we're not the
+        target user; Jellyfin's server-side permission check lets an admin
+        token change any user's password without knowing the old one. The
+        `ResetPassword` flag does NOT belong here: it looked plausible from
+        older Jellyfin API docs, but sending it triggers a different,
+        broken-for-this-purpose code path server-side (confirmed by
+        reproducing "Admin user passwords must not be empty" with it set,
+        which went away the moment it was removed).
         """
         await self._request(
             "POST",
             f"/Users/{user_id}/Password",
             token=self._settings.jellyfin_api_key,
-            json={"NewPw": new_password, "ResetPassword": True},
+            json={"CurrentPw": "", "NewPw": new_password},
         )
 
     # ------------------------------------------------------------ catalog
