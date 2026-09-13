@@ -20,7 +20,18 @@ class RadarrClient(ArrClient):
         an immediate search — this is the one call that gets qBittorrent a
         release with zero further input, provided at least one indexer is
         configured in Prowlarr and synced to Radarr.
+
+        If it's already in Radarr's database (e.g. a prior request that got
+        cleared on Vault's side but never removed from Radarr — reproduced
+        live), re-adding hits a 400, unlike qBittorrent's friendlier 409 for
+        the equivalent case. Check first, and just trigger a fresh search on
+        the existing entry instead.
         """
+        existing = await self.is_already_added("tmdbId", tmdb_id)
+        if existing is not None:
+            await self.trigger_search(existing["id"], "MoviesSearch")
+            return existing
+
         lookup = await self.lookup_by_tmdb_id(tmdb_id)
         quality_profile_id = await self.get_quality_profile_id()
         root_folder = await self.get_root_folder_path()

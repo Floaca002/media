@@ -20,8 +20,14 @@ class SonarrClient(ArrClient):
         """
         Adds the series (looked up fresh by TVDB id) with monitored=True
         and an immediate search for every episode — the TV-show equivalent
-        of RadarrClient.add_and_search.
+        of RadarrClient.add_and_search, including the same already-added
+        check (see there for why).
         """
+        existing = await self.is_already_added("tvdbId", tvdb_id)
+        if existing is not None:
+            await self.trigger_search(existing["id"], "SeriesSearch")
+            return existing
+
         lookup = await self.lookup_by_tvdb_id(tvdb_id)
         quality_profile_id = await self.get_quality_profile_id()
         root_folder = await self.get_root_folder_path()
