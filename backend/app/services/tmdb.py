@@ -33,7 +33,12 @@ class TMDBClient:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        response = await self._client.get(path, params=params or {})
+        try:
+            response = await self._client.get(path, params=params or {})
+        except httpx.TransportError:
+            # A single connect/read timeout to TMDB shouldn't fail an entire
+            # Discover page load when a retry a moment later usually succeeds.
+            response = await self._client.get(path, params=params or {})
         response.raise_for_status()
         data = response.json()
         self._cache[cache_key] = data

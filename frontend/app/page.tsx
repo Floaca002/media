@@ -28,29 +28,36 @@ export default function DiscoverPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      api.trending("all"),
-      api.trending("movie"),
-      api.trending("tv"),
-      api.popular("movie"),
-      api.popular("tv"),
-      api.topRated("movie"),
-      api.topRated("tv"),
-      api.nowPlaying(),
-      api.onTheAir(),
-    ])
-      .then(([all, movies, shows, pMovies, pShows, tMovies, tShows, playing, air]) => {
-        setTrendingAll(all.results);
-        setTrendingMovies(movies.results);
-        setTrendingShows(shows.results);
-        setPopularMovies(pMovies.results);
-        setPopularShows(pShows.results);
-        setTopRatedMovies(tMovies.results);
-        setTopRatedShows(tShows.results);
-        setNowPlaying(playing.results);
-        setOnTheAir(air.results);
-      })
-      .catch((err) => setError(err.message ?? "Failed to load Discover"));
+    // Discover fires several independent TMDB-backed calls on load — one
+    // rail hiccuping (a transient timeout reaching TMDB, say) shouldn't
+    // blank out the whole page, so each is applied on its own success
+    // rather than gating on every single one via Promise.all.
+    const setters: [Promise<{ results: TmdbItem[] }>, (items: TmdbItem[]) => void][] = [
+      [api.trending("all"), setTrendingAll],
+      [api.trending("movie"), setTrendingMovies],
+      [api.trending("tv"), setTrendingShows],
+      [api.popular("movie"), setPopularMovies],
+      [api.popular("tv"), setPopularShows],
+      [api.topRated("movie"), setTopRatedMovies],
+      [api.topRated("tv"), setTopRatedShows],
+      [api.nowPlaying(), setNowPlaying],
+      [api.onTheAir(), setOnTheAir],
+    ];
+    let anySucceeded = false;
+    let failures = 0;
+    setters.forEach(([promise, setItems]) => {
+      promise
+        .then((r) => {
+          anySucceeded = true;
+          setItems(r.results);
+        })
+        .catch(() => {
+          failures += 1;
+          if (failures === setters.length && !anySucceeded) {
+            setError("couldn't load any titles right now — check that the backend and TMDB are reachable");
+          }
+        });
+    });
   }, []);
 
   const latestQuery = useRef("");
