@@ -9,6 +9,7 @@ Docs: https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any
 
@@ -175,6 +176,23 @@ class QBittorrentClient:
                 )
             else:
                 raise
+
+    async def set_default_save_path(self, save_path: str) -> None:
+        """
+        POST /api/v2/app/setPreferences — sets qBittorrent's own global
+        default save location. A category's save path (ensure_category_save_
+        path) only actually applies to torrents added under Automatic
+        Torrent Management, and Radarr's own /torrents/add calls don't
+        request that — reproduced live: even after pinning the "radarr"
+        category's path, new torrents Radarr added still fell back to
+        qBittorrent's global default ("/downloads", the same broken
+        ephemeral path from the start of this saga) and failed the same
+        way. Setting the global default directly closes that gap for any
+        caller that doesn't specify AutoTMM or an explicit savepath.
+        """
+        await self._request(
+            "POST", "/api/v2/app/setPreferences", data={"json": json.dumps({"save_path": save_path})}
+        )
 
     async def list_torrents(self, category: str | None = None) -> list[dict[str, Any]]:
         """GET /api/v2/torrents/info — optionally filtered by category."""

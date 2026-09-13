@@ -46,6 +46,11 @@ async def lifespan(app: FastAPI):
         except Exception:  # noqa: BLE001 - qBittorrent being briefly unreachable shouldn't block startup
             logger.exception("Could not pin save path for qBittorrent category %r", category)
 
+    try:
+        await app.state.qbittorrent.set_default_save_path(settings.downloads_save_path)
+    except Exception:  # noqa: BLE001 - qBittorrent being briefly unreachable shouldn't block startup
+        logger.exception("Could not set qBittorrent's global default save path")
+
     scheduler = AsyncIOScheduler()
 
     async def organizer_tick() -> None:
