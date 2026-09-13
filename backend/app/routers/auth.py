@@ -101,14 +101,15 @@ async def reset_password(
     if not redeemed.get("Success"):
         raise HTTPException(status_code=400, detail="Invalid or expired PIN")
 
-    try:
-        # Redeeming the PIN clears the account's password, so we can log in
-        # with an empty one just long enough to set the real new password.
-        auth = await jellyfin.authenticate_by_name(body.username, "")
-    except JellyfinAuthError as exc:
+    reset_usernames = {u.lower() for u in redeemed.get("UsersReset", [])}
+    if body.username.lower() not in reset_usernames:
         raise HTTPException(
             status_code=400, detail="Username does not match the account this PIN was issued for"
-        ) from exc
+        )
 
-    await jellyfin.set_password(auth["User"]["Id"], auth["AccessToken"], body.new_password)
+    user = await jellyfin.find_user_by_name(body.username)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await jellyfin.set_password_as_admin(user["Id"], body.new_password)
     return {"ok": True}

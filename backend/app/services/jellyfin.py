@@ -120,12 +120,36 @@ class JellyfinClient:
         return response.json()
 
     async def set_password(self, user_id: str, user_token: str, new_password: str) -> None:
-        """POST /Users/{id}/Password — called right after a successful PIN redemption clears the old one."""
+        """POST /Users/{id}/Password as the user themselves (requires their current password)."""
         await self._request(
             "POST",
             f"/Users/{user_id}/Password",
             token=user_token,
             json={"CurrentPw": "", "NewPw": new_password},
+        )
+
+    async def find_user_by_name(self, username: str) -> dict[str, Any] | None:
+        """Admin-scoped user lookup, used to resolve a user id for admin-level actions."""
+        response = await self._request("GET", "/Users", token=self._settings.jellyfin_api_key)
+        for user in response.json():
+            if user.get("Name", "").lower() == username.lower():
+                return user
+        return None
+
+    async def set_password_as_admin(self, user_id: str, new_password: str) -> None:
+        """
+        POST /Users/{id}/Password using the server admin API key with
+        ResetPassword=True — the same call Jellyfin's own dashboard makes
+        when an admin resets someone's password. Avoids ever needing to
+        authenticate as the target user with a blank password, which
+        Jellyfin's own security policy can refuse depending on the account
+        (notably for administrators).
+        """
+        await self._request(
+            "POST",
+            f"/Users/{user_id}/Password",
+            token=self._settings.jellyfin_api_key,
+            json={"NewPw": new_password, "ResetPassword": True},
         )
 
     # ------------------------------------------------------------ catalog
