@@ -153,6 +153,29 @@ class QBittorrentClient:
                 return
             raise
 
+    async def ensure_category_save_path(self, category: str, save_path: str) -> None:
+        """
+        Pins a category's save path inside qBittorrent itself, so *any*
+        client adding a torrent under this category — our own backend,
+        Radarr, or Sonarr — saves into the shared volume regardless of
+        whether that specific caller bothered to pass its own `savepath`.
+        Passing one on our own /torrents/add calls (see add_magnet) doesn't
+        help at all for torrents Radarr/Sonarr add directly, which is
+        exactly the gap that caused a second round of the same permission
+        error this call fixes for good.
+        """
+        try:
+            await self._request(
+                "POST", "/api/v2/torrents/createCategory", data={"category": category, "savePath": save_path}
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 409:  # category already exists
+                await self._request(
+                    "POST", "/api/v2/torrents/editCategory", data={"category": category, "savePath": save_path}
+                )
+            else:
+                raise
+
     async def list_torrents(self, category: str | None = None) -> list[dict[str, Any]]:
         """GET /api/v2/torrents/info — optionally filtered by category."""
         params: dict[str, Any] = {}

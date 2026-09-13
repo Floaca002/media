@@ -35,6 +35,17 @@ async def lifespan(app: FastAPI):
     app.state.radarr = RadarrClient(settings.radarr_url, settings.radarr_api_key)
     app.state.sonarr = SonarrClient(settings.sonarr_url, settings.sonarr_api_key)
 
+    for category in (
+        settings.qbittorrent_category_movies,
+        settings.qbittorrent_category_tv,
+        settings.qbittorrent_category_radarr,
+        settings.qbittorrent_category_sonarr,
+    ):
+        try:
+            await app.state.qbittorrent.ensure_category_save_path(category, settings.downloads_save_path)
+        except Exception:  # noqa: BLE001 - qBittorrent being briefly unreachable shouldn't block startup
+            logger.exception("Could not pin save path for qBittorrent category %r", category)
+
     scheduler = AsyncIOScheduler()
 
     async def organizer_tick() -> None:
