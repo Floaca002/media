@@ -1,5 +1,3 @@
-version: "3.9"
-
 networks:
   vault-internal:
     internal: false # set to true once the reverse proxy is the only public entrypoint
