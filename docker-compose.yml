@@ -102,6 +102,14 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+    # Without this, the container inherits the host's /etc/resolv.conf,
+    # which on systemd-resolved distros (e.g. CachyOS) often just points to
+    # the local stub resolver at 127.0.0.53 — unreachable from inside a
+    # container's network namespace, causing intermittent or total failure
+    # to resolve external hosts like api.themoviedb.org.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
 
   vault-frontend:
     build: ./frontend
