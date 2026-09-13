@@ -54,6 +54,18 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  requestPasswordReset: (username: string) =>
+    request<{ pin_file: string | null }>("/auth/request-password-reset", {
+      method: "POST",
+      body: JSON.stringify({ username }),
+    }),
+
+  resetPassword: (username: string, pin: string, newPassword: string) =>
+    request("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ username, pin, new_password: newPassword }),
+    }),
+
   trending: (mediaType: "all" | "movie" | "tv" = "all") =>
     request<{ results: TmdbItem[] }>(`/discover/trending?media_type=${mediaType}`),
 

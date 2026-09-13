@@ -15,6 +15,20 @@ class LoginResponse(BaseModel):
     jellyfin_user_id: str
 
 
+class RequestPasswordResetBody(BaseModel):
+    username: str
+
+
+class RequestPasswordResetResponse(BaseModel):
+    pin_file: str | None = None
+
+
+class ResetPasswordBody(BaseModel):
+    username: str
+    pin: str
+    new_password: str
+
+
 class CreateRequestBody(BaseModel):
     tmdb_id: int
     media_type: str  # "movie" | "tv"

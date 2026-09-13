@@ -6,7 +6,13 @@ from sqlmodel import select
 from app.config import Settings, get_settings
 from app.db import User, get_session
 from app.dependencies import get_jellyfin
-from app.schemas import LoginRequest, LoginResponse
+from app.schemas import (
+    LoginRequest,
+    LoginResponse,
+    RequestPasswordResetBody,
+    RequestPasswordResetResponse,
+    ResetPasswordBody,
+)
 from app.security import create_access_token, get_current_user
 from app.services.jellyfin import JellyfinAuthError, JellyfinClient, JellyfinUnavailableError
 
@@ -56,3 +62,53 @@ async def login(
 @router.get("/me")
 async def me(user: User = Depends(get_current_user)) -> dict:
     return {"username": user.username, "jellyfin_user_id": user.jellyfin_user_id}
+
+
+@router.post("/request-password-reset", response_model=RequestPasswordResetResponse)
+async def request_password_reset(
+    body: RequestPasswordResetBody, jellyfin: JellyfinClient = Depends(get_jellyfin)
+) -> RequestPasswordResetResponse:
+    """
+    Kicks off Jellyfin's built-in filesystem-based reset: Jellyfin writes a
+    one-time PIN to a file inside its own container. There is deliberately
+    no way to complete a reset from this endpoint alone — the PIN has to be
+    read off disk (docker exec), which is what proves the caller actually
+    controls the server, not just the login page.
+    """
+    try:
+        result = await jellyfin.request_password_reset_pin(body.username)
+    except JellyfinUnavailableError as exc:
+        raise HTTPException(status_code=502, detail="Jellyfin unavailable") from exc
+
+    if result.get("Action") != "PinCode":
+        raise HTTPException(
+            status_code=400,
+            detail="Jellyfin did not issue a reset PIN for this account "
+            "(check the username, or that password resets are allowed from this network).",
+        )
+    return RequestPasswordResetResponse(pin_file=result.get("PinFile"))
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: ResetPasswordBody, jellyfin: JellyfinClient = Depends(get_jellyfin)
+) -> dict:
+    try:
+        redeemed = await jellyfin.redeem_password_reset_pin(body.pin)
+    except JellyfinUnavailableError as exc:
+        raise HTTPException(status_code=502, detail="Jellyfin unavailable") from exc
+
+    if not redeemed.get("Success"):
+        raise HTTPException(status_code=400, detail="Invalid or expired PIN")
+
+    try:
+        # Redeeming the PIN clears the account's password, so we can log in
+        # with an empty one just long enough to set the real new password.
+        auth = await jellyfin.authenticate_by_name(body.username, "")
+    except JellyfinAuthError as exc:
+        raise HTTPException(
+            status_code=400, detail="Username does not match the account this PIN was issued for"
+        ) from exc
+
+    await jellyfin.set_password(auth["User"]["Id"], auth["AccessToken"], body.new_password)
+    return {"ok": True}

@@ -91,6 +91,43 @@ class JellyfinClient:
         response.raise_for_status()
         return response.json()
 
+    async def request_password_reset_pin(self, username: str) -> dict[str, Any]:
+        """
+        POST /Users/ForgotPassword — asks Jellyfin to write a one-time PIN to
+        a file on its own filesystem (under its config volume). Jellyfin has
+        no email step in a plain self-hosted setup: reading that file is
+        itself the proof that the requester has server/filesystem access,
+        which is what makes this safe to expose without further auth. The
+        response tells us where it wrote the file so we can tell the user
+        exactly what to `docker exec` for.
+        """
+        response = await self._client.post(
+            "/Users/ForgotPassword",
+            headers=self._auth_header(),
+            json={"EnteredUsername": username},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def redeem_password_reset_pin(self, pin: str) -> dict[str, Any]:
+        """POST /Users/ForgotPassword/Pin — validates the PIN and clears the account's password."""
+        response = await self._client.post(
+            "/Users/ForgotPassword/Pin",
+            headers=self._auth_header(),
+            json={"Pin": pin},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def set_password(self, user_id: str, user_token: str, new_password: str) -> None:
+        """POST /Users/{id}/Password — called right after a successful PIN redemption clears the old one."""
+        await self._request(
+            "POST",
+            f"/Users/{user_id}/Password",
+            token=user_token,
+            json={"CurrentPw": "", "NewPw": new_password},
+        )
+
     # ------------------------------------------------------------ catalog
     async def get_user_views(self, user_id: str, user_token: str) -> list[dict[str, Any]]:
         """Libraries visible to a user (Movies, TV Shows, ...)."""
