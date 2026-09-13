@@ -1,14 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, setToken } from "@/lib/api";
+import { api, getToken, setToken } from "@/lib/api";
 
 type Mode = "login" | "request-reset" | "reset";
 
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
+
+  useEffect(() => {
+    if (getToken()) router.replace("/");
+  }, [router]);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

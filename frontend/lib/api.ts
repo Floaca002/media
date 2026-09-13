@@ -40,6 +40,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     } catch {
       /* no JSON body */
     }
+    // A 401 on the login endpoint itself just means "wrong password" — the
+    // login form handles that inline. A 401 anywhere else means the stored
+    // session token is missing/expired, so clear it and send the user back
+    // to sign in rather than leaving the page stuck on a cryptic error.
+    if (response.status === 401 && path !== "/auth/login" && typeof window !== "undefined") {
+      clearToken();
+      if (window.location.pathname !== "/login") window.location.href = "/login";
+    }
     throw new ApiError(response.status, message);
   }
 
