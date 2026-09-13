@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type TmdbItem } from "@/lib/api";
 import { MediaRail } from "@/components/MediaRail";
 import { SearchBar } from "@/components/SearchBar";
@@ -53,15 +53,26 @@ export default function DiscoverPage() {
       .catch((err) => setError(err.message ?? "Failed to load Discover"));
   }, []);
 
+  const latestQuery = useRef("");
+
   const runSearch = useCallback((query: string) => {
+    latestQuery.current = query;
     if (!query) {
       setSearchResults(null);
       return;
     }
     api
       .search(query)
-      .then((r) => setSearchResults(r.results))
-      .catch(() => setSearchResults([]));
+      .then((r) => {
+        // Requests can resolve out of order (e.g. a quick pause mid-typing
+        // fires a request for a partial query that then resolves after a
+        // later, slower request for the full query) — only apply a
+        // response if its query is still the one the user is looking at.
+        if (latestQuery.current === query) setSearchResults(r.results);
+      })
+      .catch(() => {
+        if (latestQuery.current === query) setSearchResults([]);
+      });
   }, []);
 
   const rails: Rail[] = useMemo(() => {
