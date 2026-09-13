@@ -59,8 +59,11 @@ class QBittorrentClient:
         """
         POST /api/v2/auth/login with form-encoded credentials.
         On success qBittorrent sets the SID cookie on the underlying
-        httpx.AsyncClient cookie jar automatically; the body just echoes
-        "Ok." or "Fails.".
+        httpx.AsyncClient cookie jar automatically. The response shape on
+        success has varied across qBittorrent versions in the wild (200
+        with body "Ok." historically; 204 with an empty body observed on
+        a newer release) so the reliable success signal is whether the SID
+        cookie actually got set, not a specific status code or body text.
         """
         async with self._login_lock:
             if self._authenticated:
@@ -76,7 +79,7 @@ class QBittorrentClient:
             except httpx.RequestError as exc:
                 raise QBittorrentUnavailableError(str(exc)) from exc
 
-            if response.status_code != 200 or response.text.strip() != "Ok.":
+            if "SID" not in self._client.cookies:
                 raise QBittorrentAuthError(
                     f"qBittorrent login failed (status={response.status_code}, "
                     f"body={response.text!r})"
