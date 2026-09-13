@@ -52,13 +52,12 @@ async def create_request(
 
         # qBittorrent's /torrents/add doesn't echo back the hash it assigned,
         # but a v1 (BTIH) magnet link's info-hash *is* the torrent hash
-        # qBittorrent will use, so we can derive it without a lookup.
-        info_hash = _extract_info_hash(body.magnet)
-        torrent_hash = None
-        if info_hash:
-            torrents = await qbt.list_torrents(category=category)
-            if any(t["hash"].lower() == info_hash for t in torrents):
-                torrent_hash = info_hash
+        # qBittorrent will use, so we derive it directly rather than
+        # re-querying /torrents/info to confirm it — that re-query was
+        # racy in practice (qBittorrent hadn't registered the torrent yet
+        # immediately after /torrents/add returned), which left the
+        # request stuck in SEARCHING with no torrent_hash at all, forever.
+        torrent_hash = _extract_info_hash(body.magnet)
 
         request = MediaRequest(
             tmdb_id=body.tmdb_id,
