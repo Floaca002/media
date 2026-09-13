@@ -36,8 +36,11 @@ class Settings(BaseSettings):
     jellyfin_container_config_path: str = "/config"
     jellyfin_config_mount_path: str = "/jellyfin-config"
 
-    # Media paths
-    downloads_complete_path: str = "/data/downloads/complete"
+    # Media paths — must be the same absolute path across the qbittorrent
+    # and vault-backend containers (via the shared media-downloads volume),
+    # since qBittorrent reports file locations that vault-backend's
+    # organizer then has to read directly off disk.
+    downloads_save_path: str = "/data/downloads"
     media_movies_path: str = "/data/media/movies"
     media_tv_path: str = "/data/media/tv"
 

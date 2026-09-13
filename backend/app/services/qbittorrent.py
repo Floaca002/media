@@ -117,13 +117,26 @@ class QBittorrentClient:
 
     # ------------------------------------------------------------ commands
     async def add_magnet(self, magnet_uri: str, category: str, *, paused: bool = False) -> None:
-        """POST /api/v2/torrents/add — multipart form, 'urls' holds magnet link(s)."""
+        """
+        POST /api/v2/torrents/add — multipart form, 'urls' holds magnet link(s).
+
+        Explicitly sets `savepath` to the shared downloads volume's mount
+        point inside this container. Without it, qBittorrent falls back to
+        its own internal default save location (observed as "/downloads",
+        an ephemeral root-owned path baked into the image — nothing to do
+        with our actual `media-downloads` volume, which this container has
+        mounted at DOWNLOADS_COMPLETE_PATH's parent instead), causing every
+        download to fail with a permission error and, even if it somehow
+        succeeded, leaving files somewhere the organizer's vault-backend
+        container has no access to at all.
+        """
         await self._request(
             "POST",
             "/api/v2/torrents/add",
             data={
                 "urls": magnet_uri,
                 "category": category,
+                "savepath": self._settings.downloads_save_path,
                 "paused": "true" if paused else "false",
             },
         )
