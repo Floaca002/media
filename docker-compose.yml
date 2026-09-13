@@ -1,0 +1,75 @@
+version: "3.9"
+
+networks:
+  vault-internal:
+    internal: false # set to true once the reverse proxy is the only public entrypoint
+
+services:
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - WEBUI_PORT=8080
+    volumes:
+      - qbittorrent-config:/config
+      - media-downloads:/data/downloads
+    networks:
+      - vault-internal
+    # No 'ports:' published to the host — only vault-backend (same network)
+    # can reach its WebUI. Access it only via this app.
+    restart: unless-stopped
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    environment:
+      - TZ=Etc/UTC
+    volumes:
+      - jellyfin-config:/config
+      - jellyfin-cache:/cache
+      - media-library:/data/media
+    networks:
+      - vault-internal
+    # No 'ports:' published — the Jellyfin UI is never opened directly.
+    restart: unless-stopped
+
+  vault-backend:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    volumes:
+      - media-downloads:/data/downloads
+      - media-library:/data/media
+    depends_on:
+      - qbittorrent
+      - jellyfin
+    networks:
+      - vault-internal
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  vault-frontend:
+    build: ./frontend
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+    depends_on:
+      - vault-backend
+    networks:
+      - vault-internal
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  qbittorrent-config:
+  jellyfin-config:
+  jellyfin-cache:
+  # media-downloads and media-library are separate named volumes, but with
+  # the default local driver they both live under /var/lib/docker/volumes
+  # on the same host filesystem, so the organizer's hardlink step works.
+  # If you bind-mount these to different physical disks instead, the
+  # organizer automatically falls back to copying the file.
+  media-downloads:
+  media-library:
