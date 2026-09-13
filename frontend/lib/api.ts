@@ -80,6 +80,13 @@ export const api = {
   popular: (mediaType: "movie" | "tv", page = 1) =>
     request<{ results: TmdbItem[] }>(`/discover/popular?media_type=${mediaType}&page=${page}`),
 
+  topRated: (mediaType: "movie" | "tv", page = 1) =>
+    request<{ results: TmdbItem[] }>(`/discover/top-rated?media_type=${mediaType}&page=${page}`),
+
+  nowPlaying: (page = 1) => request<{ results: TmdbItem[] }>(`/discover/now-playing?page=${page}`),
+
+  onTheAir: (page = 1) => request<{ results: TmdbItem[] }>(`/discover/on-the-air?page=${page}`),
+
   search: (query: string, page = 1) =>
     request<{ results: TmdbItem[] }>(`/discover/search?q=${encodeURIComponent(query)}&page=${page}`),
 

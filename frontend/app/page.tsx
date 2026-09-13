@@ -1,26 +1,54 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { PlayCircle, Info } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type TmdbItem } from "@/lib/api";
 import { MediaRail } from "@/components/MediaRail";
 import { SearchBar } from "@/components/SearchBar";
+import { DiscoverHero } from "@/components/DiscoverHero";
+
+type Filter = "all" | "movie" | "tv";
+
+interface Rail {
+  title: string;
+  items: TmdbItem[];
+}
 
 export default function DiscoverPage() {
-  const [trending, setTrending] = useState<TmdbItem[]>([]);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [trendingAll, setTrendingAll] = useState<TmdbItem[]>([]);
+  const [trendingMovies, setTrendingMovies] = useState<TmdbItem[]>([]);
+  const [trendingShows, setTrendingShows] = useState<TmdbItem[]>([]);
   const [popularMovies, setPopularMovies] = useState<TmdbItem[]>([]);
   const [popularShows, setPopularShows] = useState<TmdbItem[]>([]);
+  const [topRatedMovies, setTopRatedMovies] = useState<TmdbItem[]>([]);
+  const [topRatedShows, setTopRatedShows] = useState<TmdbItem[]>([]);
+  const [nowPlaying, setNowPlaying] = useState<TmdbItem[]>([]);
+  const [onTheAir, setOnTheAir] = useState<TmdbItem[]>([]);
   const [searchResults, setSearchResults] = useState<TmdbItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.trending("all"), api.popular("movie"), api.popular("tv")])
-      .then(([t, m, s]) => {
-        setTrending(t.results);
-        setPopularMovies(m.results);
-        setPopularShows(s.results);
+    Promise.all([
+      api.trending("all"),
+      api.trending("movie"),
+      api.trending("tv"),
+      api.popular("movie"),
+      api.popular("tv"),
+      api.topRated("movie"),
+      api.topRated("tv"),
+      api.nowPlaying(),
+      api.onTheAir(),
+    ])
+      .then(([all, movies, shows, pMovies, pShows, tMovies, tShows, playing, air]) => {
+        setTrendingAll(all.results);
+        setTrendingMovies(movies.results);
+        setTrendingShows(shows.results);
+        setPopularMovies(pMovies.results);
+        setPopularShows(pShows.results);
+        setTopRatedMovies(tMovies.results);
+        setTopRatedShows(tShows.results);
+        setNowPlaying(playing.results);
+        setOnTheAir(air.results);
       })
       .catch((err) => setError(err.message ?? "Failed to load Discover"));
   }, []);
@@ -36,7 +64,47 @@ export default function DiscoverPage() {
       .catch(() => setSearchResults([]));
   }, []);
 
-  const hero = trending[0];
+  const rails: Rail[] = useMemo(() => {
+    if (filter === "movie") {
+      return [
+        { title: "Trending movies", items: trendingMovies },
+        { title: "Now playing in theaters", items: nowPlaying },
+        { title: "Popular movies", items: popularMovies },
+        { title: "Top rated movies", items: topRatedMovies },
+      ];
+    }
+    if (filter === "tv") {
+      return [
+        { title: "Trending TV shows", items: trendingShows },
+        { title: "Airing this week", items: onTheAir },
+        { title: "Popular TV shows", items: popularShows },
+        { title: "Top rated TV shows", items: topRatedShows },
+      ];
+    }
+    return [
+      { title: "Trending now", items: trendingAll },
+      { title: "Popular movies", items: popularMovies },
+      { title: "Popular TV shows", items: popularShows },
+      { title: "Now playing in theaters", items: nowPlaying },
+      { title: "Airing this week", items: onTheAir },
+      { title: "Top rated movies", items: topRatedMovies },
+      { title: "Top rated TV shows", items: topRatedShows },
+    ];
+  }, [
+    filter,
+    trendingAll,
+    trendingMovies,
+    trendingShows,
+    popularMovies,
+    popularShows,
+    topRatedMovies,
+    topRatedShows,
+    nowPlaying,
+    onTheAir,
+  ]);
+
+  const hero =
+    filter === "movie" ? trendingMovies[0] : filter === "tv" ? trendingShows[0] : trendingAll[0];
 
   if (error) {
     return <p className="text-vault-muted">Could not reach Vault backend: {error}</p>;
@@ -44,7 +112,20 @@ export default function DiscoverPage() {
 
   return (
     <div>
-      <div className="mb-6 flex justify-end">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex gap-1 rounded-md bg-vault-card p-1">
+          {(["all", "movie", "tv"] as Filter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded px-4 py-1.5 text-sm font-medium transition-colors ${
+                filter === f ? "bg-vault-accent text-white" : "text-vault-muted hover:text-vault-text"
+              }`}
+            >
+              {f === "all" ? "All" : f === "movie" ? "Movies" : "TV Shows"}
+            </button>
+          ))}
+        </div>
         <SearchBar onSearch={runSearch} />
       </div>
 
@@ -52,36 +133,10 @@ export default function DiscoverPage() {
         <MediaRail title="Search results" items={searchResults} />
       ) : (
         <>
-          {hero && (
-            <div className="relative mb-10 h-[420px] w-full overflow-hidden rounded-xl">
-              {hero.backdrop_url && (
-                <Image src={hero.backdrop_url} alt="" fill className="object-cover" priority />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-vault-bg via-vault-bg/40 to-transparent" />
-              <div className="absolute bottom-8 left-8 max-w-xl">
-                <h1 className="mb-3 text-4xl font-bold">{hero.title ?? hero.name}</h1>
-                <p className="mb-4 line-clamp-3 text-sm text-vault-muted">{hero.overview}</p>
-                <div className="flex gap-3">
-                  <Link
-                    href={`/media/${hero.media_type}/${hero.id}`}
-                    className="flex items-center gap-2 rounded-md bg-vault-accent px-5 py-2.5 text-sm font-semibold hover:bg-red-700"
-                  >
-                    <PlayCircle className="h-5 w-5" /> View details
-                  </Link>
-                  <Link
-                    href={`/media/${hero.media_type}/${hero.id}`}
-                    className="flex items-center gap-2 rounded-md bg-vault-card px-5 py-2.5 text-sm font-semibold hover:bg-vault-surface"
-                  >
-                    <Info className="h-5 w-5" /> More info
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <MediaRail title="Trending now" items={trending} />
-          <MediaRail title="Popular movies" items={popularMovies} />
-          <MediaRail title="Popular TV shows" items={popularShows} />
+          {hero && <DiscoverHero item={hero} />}
+          {rails.map((rail) => (
+            <MediaRail key={rail.title} title={rail.title} items={rail.items} />
+          ))}
         </>
       )}
     </div>

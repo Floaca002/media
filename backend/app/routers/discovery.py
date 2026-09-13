@@ -11,10 +11,19 @@ from app.services.tmdb import TMDBClient
 router = APIRouter(prefix="/discover", tags=["discovery"])
 
 
-def _decorate_images(tmdb: TMDBClient, item: dict) -> dict:
+def _decorate_images(tmdb: TMDBClient, item: dict, media_type: str | None = None) -> dict:
+    """
+    TMDB's mixed-type endpoints (/trending, /search/multi) include a
+    media_type field per item; its single-type endpoints (/movie/popular,
+    /tv/top_rated, etc.) don't, even though every result is obviously that
+    one type — without forcing it here, the frontend's card links would
+    come out as "/media/undefined/<id>" for anything from those endpoints.
+    """
     item = dict(item)
     item["poster_url"] = tmdb.poster_url(item.get("poster_path"))
     item["backdrop_url"] = tmdb.backdrop_url(item.get("backdrop_path"))
+    if media_type and "media_type" not in item:
+        item["media_type"] = media_type
     return item
 
 
@@ -32,7 +41,30 @@ async def popular(
     media_type: str = "movie", page: int = 1, tmdb: TMDBClient = Depends(get_tmdb)
 ) -> dict:
     data = await tmdb.popular(media_type, page=page)
-    data["results"] = [_decorate_images(tmdb, r) for r in data.get("results", [])]
+    data["results"] = [_decorate_images(tmdb, r, media_type) for r in data.get("results", [])]
+    return data
+
+
+@router.get("/top-rated", dependencies=[Depends(get_current_user)])
+async def top_rated(
+    media_type: str = "movie", page: int = 1, tmdb: TMDBClient = Depends(get_tmdb)
+) -> dict:
+    data = await tmdb.top_rated(media_type, page=page)
+    data["results"] = [_decorate_images(tmdb, r, media_type) for r in data.get("results", [])]
+    return data
+
+
+@router.get("/now-playing", dependencies=[Depends(get_current_user)])
+async def now_playing(page: int = 1, tmdb: TMDBClient = Depends(get_tmdb)) -> dict:
+    data = await tmdb.now_playing(page=page)
+    data["results"] = [_decorate_images(tmdb, r, "movie") for r in data.get("results", [])]
+    return data
+
+
+@router.get("/on-the-air", dependencies=[Depends(get_current_user)])
+async def on_the_air(page: int = 1, tmdb: TMDBClient = Depends(get_tmdb)) -> dict:
+    data = await tmdb.on_the_air(page=page)
+    data["results"] = [_decorate_images(tmdb, r, "tv") for r in data.get("results", [])]
     return data
 
 

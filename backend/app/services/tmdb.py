@@ -44,6 +44,17 @@ class TMDBClient:
     async def popular(self, media_type: str, page: int = 1) -> dict[str, Any]:
         return await self._get(f"/{media_type}/popular", {"page": page})
 
+    async def top_rated(self, media_type: str, page: int = 1) -> dict[str, Any]:
+        return await self._get(f"/{media_type}/top_rated", {"page": page})
+
+    async def now_playing(self, page: int = 1) -> dict[str, Any]:
+        """Movies only — TMDB has no TV equivalent of "currently in theaters"."""
+        return await self._get("/movie/now_playing", {"page": page})
+
+    async def on_the_air(self, page: int = 1) -> dict[str, Any]:
+        """TV only — shows with an episode airing in the next 7 days."""
+        return await self._get("/tv/on_the_air", {"page": page})
+
     async def search_multi(self, query: str, page: int = 1) -> dict[str, Any]:
         return await self._get("/search/multi", {"query": query, "page": page, "include_adult": "false"})
 
