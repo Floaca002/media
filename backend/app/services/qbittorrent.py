@@ -124,22 +124,34 @@ class QBittorrentClient:
         point inside this container. Without it, qBittorrent falls back to
         its own internal default save location (observed as "/downloads",
         an ephemeral root-owned path baked into the image — nothing to do
-        with our actual `media-downloads` volume, which this container has
-        mounted at DOWNLOADS_COMPLETE_PATH's parent instead), causing every
-        download to fail with a permission error and, even if it somehow
-        succeeded, leaving files somewhere the organizer's vault-backend
-        container has no access to at all.
+        with our actual `media-downloads` volume, mounted here at
+        DOWNLOADS_SAVE_PATH), causing every download to fail with a
+        permission error and, even if it somehow succeeded, leaving files
+        somewhere the organizer's vault-backend container has no access to
+        at all.
+
+        A 409 from qBittorrent means a torrent with this info-hash already
+        exists (e.g. a previous attempt's entry that was never cleaned up
+        on qBittorrent's side) — that's not a real failure for an
+        add-if-missing operation like this one, so it's treated as success
+        rather than surfaced as a crash.
         """
-        await self._request(
-            "POST",
-            "/api/v2/torrents/add",
-            data={
-                "urls": magnet_uri,
-                "category": category,
-                "savepath": self._settings.downloads_save_path,
-                "paused": "true" if paused else "false",
-            },
-        )
+        try:
+            await self._request(
+                "POST",
+                "/api/v2/torrents/add",
+                data={
+                    "urls": magnet_uri,
+                    "category": category,
+                    "savepath": self._settings.downloads_save_path,
+                    "paused": "true" if paused else "false",
+                },
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 409:
+                logger.info("qBittorrent: torrent already exists, treating add_magnet as a no-op")
+                return
+            raise
 
     async def list_torrents(self, category: str | None = None) -> list[dict[str, Any]]:
         """GET /api/v2/torrents/info — optionally filtered by category."""
