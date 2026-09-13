@@ -1,6 +1,7 @@
 """TMDB (The Movie Database) client — metadata, search, trending, trailers."""
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 import httpx
@@ -42,18 +43,51 @@ class TMDBClient:
         return await self._get(f"/trending/{media_type}/{window}")
 
     async def popular(self, media_type: str, page: int = 1) -> dict[str, Any]:
-        return await self._get(f"/{media_type}/popular", {"page": page})
+        """
+        TMDB's own /popular endpoint is dominated by long-running Asian daily
+        dramas and variety shows — they rack up huge view/vote counts in
+        TMDB's database despite not being what most people mean by "popular".
+        /discover with an English-original-language filter is the standard
+        workaround and matches what a Netflix-style "Popular" row expects.
+        """
+        return await self._get(
+            f"/discover/{media_type}",
+            {"sort_by": "popularity.desc", "with_original_language": "en", "page": page},
+        )
 
     async def top_rated(self, media_type: str, page: int = 1) -> dict[str, Any]:
-        return await self._get(f"/{media_type}/top_rated", {"page": page})
+        return await self._get(
+            f"/discover/{media_type}",
+            {
+                "sort_by": "vote_average.desc",
+                "vote_count.gte": 200,
+                "with_original_language": "en",
+                "page": page,
+            },
+        )
 
     async def now_playing(self, page: int = 1) -> dict[str, Any]:
         """Movies only — TMDB has no TV equivalent of "currently in theaters"."""
-        return await self._get("/movie/now_playing", {"page": page})
+        return await self._get("/movie/now_playing", {"page": page, "region": "US"})
 
     async def on_the_air(self, page: int = 1) -> dict[str, Any]:
-        """TV only — shows with an episode airing in the next 7 days."""
-        return await self._get("/tv/on_the_air", {"page": page})
+        """
+        TV only — shows with an episode airing in the next 7 days. TMDB's own
+        /tv/on_the_air has no language filter and suffers the same skew as
+        /popular, so this reproduces its "airing soon" semantics via
+        /discover instead, with the same English-original-language filter.
+        """
+        today = date.today()
+        return await self._get(
+            "/discover/tv",
+            {
+                "sort_by": "popularity.desc",
+                "with_original_language": "en",
+                "air_date.gte": today.isoformat(),
+                "air_date.lte": (today + timedelta(days=7)).isoformat(),
+                "page": page,
+            },
+        )
 
     async def search_multi(self, query: str, page: int = 1) -> dict[str, Any]:
         return await self._get("/search/multi", {"query": query, "page": page, "include_adult": "false"})
