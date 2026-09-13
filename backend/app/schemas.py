@@ -34,7 +34,10 @@ class CreateRequestBody(BaseModel):
     tmdb_id: int
     media_type: str  # "movie" | "tv"
     title: str
-    magnet: str
+    # Omit to go through Radarr/Sonarr's automatic search + grab (the
+    # default "Download" button flow); provide a magnet to add it to
+    # qBittorrent directly instead, bypassing indexer search entirely.
+    magnet: str | None = None
     season: int | None = None
     episode: int | None = None
 

@@ -93,7 +93,7 @@ export const api = {
     tmdb_id: number;
     media_type: string;
     title: string;
-    magnet: string;
+    magnet?: string;
     season?: number;
     episode?: number;
   }) => request<RequestOut>("/requests", { method: "POST", body: JSON.stringify(body) }),

@@ -32,6 +32,52 @@ services:
     # No 'ports:' published — the Jellyfin UI is never opened directly.
     restart: unless-stopped
 
+  prowlarr:
+    image: linuxserver/prowlarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - prowlarr-config:/config
+    networks:
+      - vault-internal
+    # No 'ports:' published — indexer setup happens once (temporarily
+    # expose 9696 for it), then Prowlarr is never opened again; Radarr and
+    # Sonarr pull indexers from it automatically via its "Apps" sync.
+    restart: unless-stopped
+
+  radarr:
+    image: linuxserver/radarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - radarr-config:/config
+      - media-downloads:/data/downloads
+      - media-library:/data/media
+    networks:
+      - vault-internal
+    # No 'ports:' published — Vault triggers everything via Radarr's API;
+    # its own UI is only needed once, for initial root folder/indexer setup.
+    restart: unless-stopped
+
+  sonarr:
+    image: linuxserver/sonarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - sonarr-config:/config
+      - media-downloads:/data/downloads
+      - media-library:/data/media
+    networks:
+      - vault-internal
+    # No 'ports:' published — same as radarr above.
+    restart: unless-stopped
+
   vault-backend:
     build: ./backend
     env_file:
@@ -49,6 +95,8 @@ services:
     depends_on:
       - qbittorrent
       - jellyfin
+      - radarr
+      - sonarr
     networks:
       - vault-internal
     ports:
@@ -71,6 +119,9 @@ volumes:
   qbittorrent-config:
   jellyfin-config:
   jellyfin-cache:
+  prowlarr-config:
+  radarr-config:
+  sonarr-config:
   # media-downloads and media-library are separate named volumes, but with
   # the default local driver they both live under /var/lib/docker/volumes
   # on the same host filesystem, so the organizer's hardlink step works.

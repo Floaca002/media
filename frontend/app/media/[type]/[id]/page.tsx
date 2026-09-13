@@ -12,6 +12,7 @@ export default function MediaDetailPage() {
   const [details, setDetails] = useState<TmdbDetails | null>(null);
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
   const [magnetInput, setMagnetInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -29,8 +30,9 @@ export default function MediaDetailPage() {
     api.availability(mediaType, tmdbId).then(setAvailability).catch(() => {});
   }, [mediaType, tmdbId]);
 
-  async function submitRequest() {
-    if (!details || !magnetInput.startsWith("magnet:")) {
+  async function submitRequest(magnet?: string) {
+    if (!details) return;
+    if (magnet !== undefined && !magnet.startsWith("magnet:")) {
       setMessage("Paste a valid magnet link first.");
       return;
     }
@@ -41,10 +43,10 @@ export default function MediaDetailPage() {
         tmdb_id: tmdbId,
         media_type: mediaType,
         title: details.title ?? details.name ?? "Untitled",
-        magnet: magnetInput,
+        magnet,
       });
-      setAvailability({ status: "DOWNLOADING", jellyfin_item_id: null });
-      setMessage("Added to Downloads.");
+      setAvailability({ status: "SEARCHING", jellyfin_item_id: null });
+      setMessage(magnet ? "Added to Downloads." : "Searching for the best release — this happens automatically.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to create request");
     } finally {
@@ -105,20 +107,41 @@ export default function MediaDetailPage() {
                 <Download className="h-5 w-5 animate-pulse" /> {availability?.status.toLowerCase()}...
               </span>
             ) : (
-              <div className="flex w-full max-w-lg flex-col gap-2 sm:flex-row">
-                <input
-                  value={magnetInput}
-                  onChange={(e) => setMagnetInput(e.target.value)}
-                  placeholder="Paste magnet link to download"
-                  className="flex-1 rounded-md border border-vault-border bg-vault-surface px-3 py-2 text-sm placeholder:text-vault-muted focus:border-vault-accent focus:outline-none"
-                />
-                <button
-                  onClick={submitRequest}
-                  disabled={submitting}
-                  className="flex items-center justify-center gap-2 rounded-md bg-vault-accent px-6 py-2.5 font-semibold hover:bg-red-700 disabled:opacity-50"
-                >
-                  <Download className="h-5 w-5" /> Download
-                </button>
+              <div className="flex w-full max-w-lg flex-col gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => submitRequest()}
+                    disabled={submitting}
+                    className="flex items-center justify-center gap-2 rounded-md bg-vault-accent px-6 py-2.5 font-semibold hover:bg-red-700 disabled:opacity-50"
+                  >
+                    <Download className="h-5 w-5" /> {submitting ? "Starting..." : "Download"}
+                  </button>
+                  {!showManualEntry && (
+                    <button
+                      onClick={() => setShowManualEntry(true)}
+                      className="text-sm text-vault-muted underline hover:text-vault-text"
+                    >
+                      Paste a magnet link instead
+                    </button>
+                  )}
+                </div>
+                {showManualEntry && (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={magnetInput}
+                      onChange={(e) => setMagnetInput(e.target.value)}
+                      placeholder="Paste magnet link to download"
+                      className="flex-1 rounded-md border border-vault-border bg-vault-surface px-3 py-2 text-sm placeholder:text-vault-muted focus:border-vault-accent focus:outline-none"
+                    />
+                    <button
+                      onClick={() => submitRequest(magnetInput)}
+                      disabled={submitting}
+                      className="flex items-center justify-center gap-2 rounded-md bg-vault-card px-6 py-2.5 font-semibold hover:bg-vault-surface disabled:opacity-50"
+                    >
+                      <Download className="h-5 w-5" /> Use this release
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

@@ -53,6 +53,15 @@ class TMDBClient:
             {"append_to_response": "credits,videos,similar"},
         )
 
+    async def get_tv_tvdb_id(self, tmdb_id: int) -> int | None:
+        """
+        Sonarr identifies shows by TVDB id, not TMDB id — TMDB exposes the
+        mapping via its external_ids endpoint rather than in the regular
+        details response.
+        """
+        data = await self._get(f"/tv/{tmdb_id}/external_ids")
+        return data.get("tvdb_id")
+
     def poster_url(self, path: str | None, size: str = "w500") -> str | None:
         if not path:
             return None

@@ -12,9 +12,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
 from app.db import init_db
 from app.routers import auth, discovery, downloads, library, requests, stream, system, watch
+from app.services.arr_sync import run_arr_sync_pass
 from app.services.jellyfin import JellyfinClient
 from app.services.organizer import run_organizer_pass
 from app.services.qbittorrent import QBittorrentClient
+from app.services.radarr import RadarrClient
+from app.services.sonarr import SonarrClient
 from app.services.tmdb import TMDBClient
 
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +32,8 @@ async def lifespan(app: FastAPI):
     app.state.qbittorrent = QBittorrentClient(settings)
     app.state.jellyfin = JellyfinClient(settings)
     app.state.tmdb = TMDBClient(settings)
+    app.state.radarr = RadarrClient(settings.radarr_url, settings.radarr_api_key)
+    app.state.sonarr = SonarrClient(settings.sonarr_url, settings.sonarr_api_key)
 
     scheduler = AsyncIOScheduler()
 
@@ -40,7 +45,16 @@ async def lifespan(app: FastAPI):
         except Exception:  # noqa: BLE001 - never let a bad tick kill the scheduler
             logger.exception("Organizer tick failed")
 
+    async def arr_sync_tick() -> None:
+        try:
+            updated = await run_arr_sync_pass(app.state.radarr, app.state.sonarr, app.state.jellyfin)
+            if updated:
+                logger.info("Arr sync: marked %d request(s) as AVAILABLE", updated)
+        except Exception:  # noqa: BLE001 - never let a bad tick kill the scheduler
+            logger.exception("Arr sync tick failed")
+
     scheduler.add_job(organizer_tick, "interval", seconds=30, id="organizer")
+    scheduler.add_job(arr_sync_tick, "interval", seconds=30, id="arr_sync")
     scheduler.start()
 
     try:
@@ -50,6 +64,8 @@ async def lifespan(app: FastAPI):
         await app.state.qbittorrent.aclose()
         await app.state.jellyfin.aclose()
         await app.state.tmdb.aclose()
+        await app.state.radarr.aclose()
+        await app.state.sonarr.aclose()
 
 
 class CatchAllMiddleware(BaseHTTPMiddleware):
