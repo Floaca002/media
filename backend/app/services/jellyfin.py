@@ -42,21 +42,25 @@ class JellyfinClient:
 
     def _auth_header(self, token: str | None = None) -> dict[str, str]:
         """
-        Jellyfin wants a structured 'X-Emby-Authorization' header identifying
-        the client on every request, plus 'X-Emby-Token' once you have a
-        token (either the admin API key or a user access token).
+        Jellyfin 12 removed the legacy X-Emby-Authorization/X-Emby-Token/
+        X-MediaBrowser-Token headers and the api_key query param entirely —
+        confirmed against a live 12.0.0 server, which rejected all of them
+        uniformly as unrecognized. Everything now goes through a single
+        standard Authorization header carrying both client identification
+        and, once available, the token (API key or user access token):
+            Authorization: MediaBrowser Client="...", Device="...",
+                           DeviceId="...", Version="...", Token="..."
         """
         s = self._settings
-        header = (
-            f'MediaBrowser Client="{s.jellyfin_client_name}", '
-            f'Device="{s.jellyfin_device_name}", '
-            f'DeviceId="{s.jellyfin_device_id}", '
-            f'Version="{s.jellyfin_version}"'
-        )
-        headers = {"X-Emby-Authorization": header}
+        parts = [
+            f'Client="{s.jellyfin_client_name}"',
+            f'Device="{s.jellyfin_device_name}"',
+            f'DeviceId="{s.jellyfin_device_id}"',
+            f'Version="{s.jellyfin_version}"',
+        ]
         if token:
-            headers["X-Emby-Token"] = token
-        return headers
+            parts.append(f'Token="{token}"')
+        return {"Authorization": "MediaBrowser " + ", ".join(parts)}
 
     async def _request(
         self, method: str, path: str, *, token: str | None = None, **kwargs: Any
