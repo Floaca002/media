@@ -84,7 +84,9 @@ class JellyfinClient:
         except httpx.RequestError as exc:
             raise JellyfinUnavailableError(str(exc)) from exc
 
-        if response.status_code == 401:
+        if response.status_code in (400, 401):
+            # Jellyfin returns 400 (not just 401) for bad credentials on this
+            # endpoint depending on version/config, so treat both as auth failure.
             raise JellyfinAuthError("Invalid Jellyfin username or password")
         response.raise_for_status()
         return response.json()

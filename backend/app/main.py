@@ -4,8 +4,9 @@ import logging
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.db import init_db
@@ -67,6 +68,22 @@ app.include_router(downloads.router, prefix="/api")
 app.include_router(library.router, prefix="/api")
 app.include_router(watch.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Without this, an unhandled exception is caught by Starlette's outermost
+    ServerErrorMiddleware, which sits *outside* CORSMiddleware and returns a
+    plain response with no Access-Control-Allow-Origin header. The browser
+    then reports the failure to the frontend as an opaque network error
+    ("Failed to fetch") instead of surfacing the actual 500 response, making
+    real bugs indistinguishable from the backend being unreachable. Handling
+    it here keeps us inside the normal middleware stack so CORS headers are
+    still attached.
+    """
+    logger.exception("Unhandled error in %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/api/health")
