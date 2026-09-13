@@ -209,6 +209,49 @@ class JellyfinClient:
         )
         return response.json().get("Items", [])
 
+    async def get_seasons(self, user_id: str, user_token: str, series_id: str) -> list[dict[str, Any]]:
+        response = await self._request(
+            "GET", f"/Shows/{series_id}/Seasons", token=user_token, params={"userId": user_id}
+        )
+        return response.json().get("Items", [])
+
+    async def get_episodes(
+        self, user_id: str, user_token: str, series_id: str, season_id: str
+    ) -> list[dict[str, Any]]:
+        response = await self._request(
+            "GET",
+            f"/Shows/{series_id}/Episodes",
+            token=user_token,
+            params={"userId": user_id, "seasonId": season_id},
+        )
+        return response.json().get("Items", [])
+
+    async def find_item_by_tmdb_id(self, media_type: str, tmdb_id: int) -> str | None:
+        """
+        Admin-scoped lookup used once a Request flips to AVAILABLE, to
+        record which Jellyfin item it actually became — otherwise
+        MediaRequest.jellyfin_item_id is never set at all, and "Watch Now"
+        on a Discover detail page has nothing to link to.
+
+        Filters client-side rather than trusting a server-side
+        provider-id-equals query param, since this session has repeatedly
+        found Jellyfin API details not to be what older docs/assumptions
+        suggested — a personal library is small enough that fetching
+        everything of this type and matching locally is cheap and reliable.
+        """
+        item_type = "Movie" if media_type == "movie" else "Series"
+        response = await self._request(
+            "GET",
+            "/Items",
+            token=self._settings.jellyfin_api_key,
+            params={"Recursive": "true", "IncludeItemTypes": item_type, "Fields": "ProviderIds"},
+        )
+        for item in response.json().get("Items", []):
+            provider_ids = item.get("ProviderIds") or {}
+            if str(provider_ids.get("Tmdb")) == str(tmdb_id):
+                return item["Id"]
+        return None
+
     async def ping(self) -> dict[str, Any]:
         """Lightweight admin-scoped health check — GET /System/Info."""
         response = await self._request("GET", "/System/Info", token=self._settings.jellyfin_api_key)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
@@ -27,6 +28,13 @@ async def item_image(
         upstream = await jellyfin.get_item_image(item_id, tag)
     except JellyfinUnavailableError as exc:
         raise HTTPException(status_code=502, detail="Jellyfin unavailable") from exc
+    except httpx.HTTPStatusError as exc:
+        # A bad/stale id or an item with no image at all comes back as a
+        # plain 404 from Jellyfin — previously this fell through the crack
+        # (only JellyfinUnavailableError was caught) and surfaced as an
+        # opaque "Internal server error", which is exactly what a broken
+        # <img src> shows regardless, but a real 404 is honest about why.
+        raise HTTPException(status_code=exc.response.status_code, detail="Image not found") from exc
     return Response(content=upstream.content, media_type=upstream.headers.get("content-type", "image/jpeg"))
 
 
@@ -82,5 +90,28 @@ async def item_detail(
 ) -> dict:
     try:
         return await jellyfin.get_item(user.jellyfin_user_id, user.jellyfin_access_token, item_id)
+    except JellyfinUnavailableError as exc:
+        raise HTTPException(status_code=502, detail="Jellyfin unavailable") from exc
+
+
+@router.get("/items/{series_id}/seasons")
+async def seasons(
+    series_id: str, user: User = Depends(get_current_user), jellyfin: JellyfinClient = Depends(get_jellyfin)
+) -> list:
+    try:
+        return await jellyfin.get_seasons(user.jellyfin_user_id, user.jellyfin_access_token, series_id)
+    except JellyfinUnavailableError as exc:
+        raise HTTPException(status_code=502, detail="Jellyfin unavailable") from exc
+
+
+@router.get("/items/{series_id}/episodes")
+async def episodes(
+    series_id: str,
+    season_id: str,
+    user: User = Depends(get_current_user),
+    jellyfin: JellyfinClient = Depends(get_jellyfin),
+) -> list:
+    try:
+        return await jellyfin.get_episodes(user.jellyfin_user_id, user.jellyfin_access_token, series_id, season_id)
     except JellyfinUnavailableError as exc:
         raise HTTPException(status_code=502, detail="Jellyfin unavailable") from exc

@@ -14,6 +14,7 @@ from app.db import init_db
 from app.routers import auth, discovery, downloads, library, requests, stream, system, watch
 from app.services.arr_sync import run_arr_sync_pass
 from app.services.jellyfin import JellyfinClient
+from app.services.jellyfin_link import run_jellyfin_link_pass
 from app.services.organizer import run_organizer_pass
 from app.services.qbittorrent import QBittorrentClient
 from app.services.radarr import RadarrClient
@@ -69,8 +70,17 @@ async def lifespan(app: FastAPI):
         except Exception:  # noqa: BLE001 - never let a bad tick kill the scheduler
             logger.exception("Arr sync tick failed")
 
+    async def jellyfin_link_tick() -> None:
+        try:
+            linked = await run_jellyfin_link_pass(app.state.jellyfin)
+            if linked:
+                logger.info("Jellyfin link: matched %d request(s) to a library item", linked)
+        except Exception:  # noqa: BLE001 - never let a bad tick kill the scheduler
+            logger.exception("Jellyfin link tick failed")
+
     scheduler.add_job(organizer_tick, "interval", seconds=30, id="organizer")
     scheduler.add_job(arr_sync_tick, "interval", seconds=30, id="arr_sync")
+    scheduler.add_job(jellyfin_link_tick, "interval", seconds=30, id="jellyfin_link")
     scheduler.start()
 
     try:

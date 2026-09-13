@@ -97,7 +97,15 @@ export default function MediaDetailPage() {
           <div className="mb-8 flex flex-wrap gap-3">
             {isAvailable ? (
               <a
-                href={`/watch/${availability?.jellyfin_item_id}`}
+                // A TV show's jellyfin_item_id is the Series item, which has
+                // no video file of its own — it needs a season/episode
+                // picked first via the show page, unlike a Movie which
+                // plays directly.
+                href={
+                  mediaType === "tv"
+                    ? `/show/${availability?.jellyfin_item_id}`
+                    : `/watch/${availability?.jellyfin_item_id}`
+                }
                 className="flex items-center gap-2 rounded-md bg-vault-accent px-6 py-3 font-semibold hover:bg-red-700"
               >
                 <PlayCircle className="h-5 w-5" /> Watch Now

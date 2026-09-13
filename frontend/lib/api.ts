@@ -109,6 +109,10 @@ export const api = {
     return request<{ Items: JellyfinItem[]; TotalRecordCount: number }>(`/library/items?${qs}`);
   },
   continueWatching: () => request<JellyfinItem[]>("/library/continue-watching"),
+  itemDetail: (itemId: string) => request<JellyfinItem>(`/library/items/${itemId}`),
+  seasons: (seriesId: string) => request<JellyfinItem[]>(`/library/items/${seriesId}/seasons`),
+  episodes: (seriesId: string, seasonId: string) =>
+    request<JellyfinItem[]>(`/library/items/${seriesId}/episodes?season_id=${seasonId}`),
   playbackInfo: async (itemId: string) => {
     const info = await request<PlaybackInfo>(`/library/items/${itemId}/playback`);
     // hls_url comes back as a path relative to the backend (e.g.
@@ -190,8 +194,18 @@ export interface JellyfinItem {
   Type: string;
   Overview?: string;
   ProductionYear?: number;
-  UserData?: { PlayedPercentage?: number; Played?: boolean };
+  UserData?: { PlayedPercentage?: number; Played?: boolean; PlaybackPositionTicks?: number };
   ImageTags?: { Primary?: string };
+  IndexNumber?: number;
+  ParentIndexNumber?: number;
+  SeriesId?: string;
+  SeasonId?: string;
+  RunTimeTicks?: number;
+}
+
+export function jellyfinImageUrl(item: JellyfinItem): string | null {
+  if (!item.ImageTags?.Primary) return null;
+  return `${API_BASE_URL}/library/items/${item.Id}/image?tag=${item.ImageTags.Primary}`;
 }
 
 export interface PlaybackInfo {
