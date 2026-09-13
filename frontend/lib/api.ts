@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 const TOKEN_KEY = "vault_token";
 
 export function getToken(): string | null {
@@ -109,7 +109,14 @@ export const api = {
     return request<{ Items: JellyfinItem[]; TotalRecordCount: number }>(`/library/items?${qs}`);
   },
   continueWatching: () => request<JellyfinItem[]>("/library/continue-watching"),
-  playbackInfo: (itemId: string) => request<PlaybackInfo>(`/library/items/${itemId}/playback`),
+  playbackInfo: async (itemId: string) => {
+    const info = await request<PlaybackInfo>(`/library/items/${itemId}/playback`);
+    // hls_url comes back as a path relative to the backend (e.g.
+    // "/api/stream/..."), not the frontend's own origin — resolve it
+    // against wherever the API base actually points.
+    const origin = new URL(API_BASE_URL).origin;
+    return { ...info, hls_url: `${origin}${info.hls_url}` };
+  },
   reportProgress: (body: {
     item_id: string;
     play_session_id: string;

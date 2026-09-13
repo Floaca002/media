@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from app.db import User
 from app.dependencies import get_jellyfin
@@ -8,6 +9,25 @@ from app.security import get_current_user
 from app.services.jellyfin import JellyfinClient, JellyfinUnavailableError
 
 router = APIRouter(prefix="/library", tags=["library"])
+
+
+@router.get("/items/{item_id}/image")
+async def item_image(
+    item_id: str, tag: str | None = None, jellyfin: JellyfinClient = Depends(get_jellyfin)
+) -> Response:
+    """
+    Deliberately unauthenticated (unlike every other endpoint here): an
+    <img src> can't attach the Vault JWT the way a fetch() call can, and
+    Jellyfin has no published port for the browser to hit directly, so
+    this proxies the image through the one backend the browser can always
+    reach. Posters aren't sensitive, and the item id alone reveals nothing
+    an authenticated user couldn't already see via /library/items.
+    """
+    try:
+        upstream = await jellyfin.get_item_image(item_id, tag)
+    except JellyfinUnavailableError as exc:
+        raise HTTPException(status_code=502, detail="Jellyfin unavailable") from exc
+    return Response(content=upstream.content, media_type=upstream.headers.get("content-type", "image/jpeg"))
 
 
 @router.get("/views")

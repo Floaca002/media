@@ -241,25 +241,18 @@ class JellyfinClient:
         )
         return response.json()
 
-    def build_hls_url(
-        self,
-        item_id: str,
-        *,
-        media_source_id: str,
-        play_session_id: str,
-        user_token: str,
-    ) -> str:
+    def build_hls_url(self, item_id: str, *, media_source_id: str, play_session_id: str) -> str:
         """
-        Build the adaptive HLS master playlist URL for a video item.
-
-        Jellyfin serves an HLS master playlist at:
-          /Videos/{itemId}/master.m3u8
-        with the target codecs/session identified via query params. The
-        browser's hls.js (or Safari's native HLS) then fetches variant
-        playlists + .ts/.m4s segments from the same base, all of which
-        Jellyfin will happily serve given a valid api_key query param —
-        which is why we pass the *user's* short-lived access token rather
-        than the server admin key.
+        Build the adaptive HLS master playlist URL for a video item — as a
+        path through Vault's OWN /api/stream proxy (app/routers/stream.py),
+        not a direct Jellyfin URL. Jellyfin has no published port in this
+        deployment; the browser can never reach it directly by design, so
+        every browser-facing media URL has to be re-authenticated and
+        streamed through this backend instead. (An earlier version of this
+        embedded the user's token as an `api_key` query param for the
+        browser to hit Jellyfin directly — that never could have worked
+        here, and separately, Jellyfin 12 also dropped support for that
+        query param entirely.)
         """
         query = httpx.QueryParams(
             {
@@ -272,11 +265,27 @@ class JellyfinClient:
                 "SegmentContainer": "ts",
                 "MinSegments": "1",
                 "BreakOnNonKeyFrames": "True",
-                "api_key": user_token,
                 "DeviceId": self._settings.jellyfin_device_id,
             }
         )
-        return f"{self._base_url}/Videos/{item_id}/master.m3u8?{query}"
+        return f"/api/stream/{item_id}/master.m3u8?{query}"
+
+    async def get_item_image(self, item_id: str, tag: str | None = None) -> httpx.Response:
+        """
+        Fetches a poster/backdrop image using the admin API key, for the
+        unauthenticated image-proxy endpoint to stream back to the browser
+        — an <img> tag can't attach a Vault JWT the way a fetch() call can,
+        so that endpoint can't require the normal auth dependency, and
+        needs its own credential to reach Jellyfin instead.
+        """
+        params = {"tag": tag} if tag else {}
+        return await self._request(
+            "GET", f"/Items/{item_id}/Images/Primary", token=self._settings.jellyfin_api_key, params=params
+        )
+
+    async def stream_passthrough(self, path: str, *, token: str, params: dict[str, Any]) -> httpx.Response:
+        """Authenticated raw GET used by the HLS proxy for manifests and media segments alike."""
+        return await self._request("GET", path, token=token, params=params)
 
     async def report_playback_start(
         self, user_token: str, item_id: str, play_session_id: str, media_source_id: str

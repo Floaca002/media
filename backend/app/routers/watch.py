@@ -31,10 +31,7 @@ async def get_playback_info(
     media_source_id = media_sources[0]["Id"]
 
     hls_url = jellyfin.build_hls_url(
-        item_id,
-        media_source_id=media_source_id,
-        play_session_id=play_session_id,
-        user_token=user.jellyfin_access_token,
+        item_id, media_source_id=media_source_id, play_session_id=play_session_id
     )
 
     start_ticks = media_sources[0].get("StartPosition", 0) or 0

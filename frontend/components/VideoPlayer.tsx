@@ -2,6 +2,7 @@
 
 import Hls from "hls.js";
 import { useEffect, useRef } from "react";
+import { getToken } from "@/lib/api";
 
 const TICKS_PER_SECOND = 10_000_000; // Jellyfin uses 100-nanosecond ticks
 const REPORT_INTERVAL_MS = 10_000;
@@ -22,13 +23,24 @@ export function VideoPlayer({ src, startPositionTicks = 0, onProgress, onEnded }
 
     let hls: Hls | null = null;
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Safari: native HLS support, no library needed.
-      video.src = src;
-    } else if (Hls.isSupported()) {
-      hls = new Hls({ maxBufferLength: 30 });
+    if (Hls.isSupported()) {
+      // hls.js issues every request (master playlist, variant playlists,
+      // and each segment) through its own configurable loader, so this is
+      // the one path that can actually attach the Vault JWT the backend's
+      // /api/stream proxy requires — a plain <video src> assignment (the
+      // Safari-native-HLS branch this used to take) cannot set custom
+      // headers at all, so Safari isn't supported by this player yet.
+      hls = new Hls({
+        maxBufferLength: 30,
+        xhrSetup: (xhr) => {
+          const token = getToken();
+          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        },
+      });
       hls.loadSource(src);
       hls.attachMedia(video);
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;
     }
 
     const startSeconds = startPositionTicks / TICKS_PER_SECOND;

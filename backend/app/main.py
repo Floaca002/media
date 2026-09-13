@@ -11,7 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import get_settings
 from app.db import init_db
-from app.routers import auth, discovery, downloads, library, requests, system, watch
+from app.routers import auth, discovery, downloads, library, requests, stream, system, watch
 from app.services.jellyfin import JellyfinClient
 from app.services.organizer import run_organizer_pass
 from app.services.qbittorrent import QBittorrentClient
@@ -97,6 +97,7 @@ app.include_router(requests.router, prefix="/api")
 app.include_router(downloads.router, prefix="/api")
 app.include_router(library.router, prefix="/api")
 app.include_router(watch.router, prefix="/api")
+app.include_router(stream.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 
 

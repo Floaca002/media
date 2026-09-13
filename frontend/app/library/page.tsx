@@ -4,20 +4,18 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { PlayCircle } from "lucide-react";
-import { api, type JellyfinItem } from "@/lib/api";
+import { API_BASE_URL, api, type JellyfinItem } from "@/lib/api";
 
-function imageUrl(item: JellyfinItem, jellyfinBase: string): string | null {
+function imageUrl(item: JellyfinItem): string | null {
   if (!item.ImageTags?.Primary) return null;
-  return `${jellyfinBase}/Items/${item.Id}/Images/Primary?tag=${item.ImageTags.Primary}`;
+  // Routed through Vault's own backend, not Jellyfin directly — Jellyfin
+  // has no published port, so the browser could never reach it itself.
+  return `${API_BASE_URL}/library/items/${item.Id}/image?tag=${item.ImageTags.Primary}`;
 }
 
 export default function LibraryPage() {
   const [items, setItems] = useState<JellyfinItem[]>([]);
   const [continueWatching, setContinueWatching] = useState<JellyfinItem[]>([]);
-  // NEXT_PUBLIC_JELLYFIN_URL is only used to build public image URLs for
-  // <img>/<Image> tags in the browser; all authenticated calls still go
-  // through the Vault backend.
-  const jellyfinBase = process.env.NEXT_PUBLIC_JELLYFIN_URL ?? "";
 
   useEffect(() => {
     api.libraryItems({ type: "Movie,Series" }).then((r) => setItems(r.Items));
@@ -33,7 +31,7 @@ export default function LibraryPage() {
           <h2 className="mb-3 text-xl font-semibold">Continue Watching</h2>
           <div className="rail flex gap-4 overflow-x-auto pb-2">
             {continueWatching.map((item) => (
-              <LibraryCard key={item.Id} item={item} jellyfinBase={jellyfinBase} />
+              <LibraryCard key={item.Id} item={item} />
             ))}
           </div>
         </section>
@@ -43,7 +41,7 @@ export default function LibraryPage() {
         <h2 className="mb-3 text-xl font-semibold">All Titles</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
           {items.map((item) => (
-            <LibraryCard key={item.Id} item={item} jellyfinBase={jellyfinBase} />
+            <LibraryCard key={item.Id} item={item} />
           ))}
         </div>
         {items.length === 0 && <p className="text-vault-muted">Nothing available yet — request a title from Discover.</p>}
@@ -52,8 +50,8 @@ export default function LibraryPage() {
   );
 }
 
-function LibraryCard({ item, jellyfinBase }: { item: JellyfinItem; jellyfinBase: string }) {
-  const img = imageUrl(item, jellyfinBase);
+function LibraryCard({ item }: { item: JellyfinItem }) {
+  const img = imageUrl(item);
   const progress = item.UserData?.PlayedPercentage ?? 0;
 
   return (
