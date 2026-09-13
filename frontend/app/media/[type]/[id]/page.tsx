@@ -15,13 +15,18 @@ export default function MediaDetailPage() {
   const [magnetInput, setMagnetInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const tmdbId = Number(params.id);
   const mediaType = params.type;
 
   useEffect(() => {
-    api.details(mediaType, tmdbId).then(setDetails);
-    api.availability(mediaType, tmdbId).then(setAvailability);
+    setLoadError(null);
+    api
+      .details(mediaType, tmdbId)
+      .then(setDetails)
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Failed to load title"));
+    api.availability(mediaType, tmdbId).then(setAvailability).catch(() => {});
   }, [mediaType, tmdbId]);
 
   async function submitRequest() {
@@ -47,6 +52,7 @@ export default function MediaDetailPage() {
     }
   }
 
+  if (loadError) return <p className="text-vault-muted">Could not load this title: {loadError}</p>;
   if (!details) return <p className="text-vault-muted">Loading...</p>;
 
   const title = details.title ?? details.name ?? "Untitled";

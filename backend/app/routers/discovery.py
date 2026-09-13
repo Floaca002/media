@@ -51,8 +51,15 @@ async def details(media_type: str, tmdb_id: int, tmdb: TMDBClient = Depends(get_
     data["poster_url"] = tmdb.poster_url(data.get("poster_path"))
     data["backdrop_url"] = tmdb.backdrop_url(data.get("backdrop_path"))
     data["trailer_key"] = tmdb.trailer_key(data)
-    data["cast"] = (data.get("credits", {}).get("cast") or [])[:12]
-    data["similar"] = [_decorate_images(tmdb, r) for r in data.get("similar", {}).get("results", [])[:12]]
+    credits = data.get("credits") or {}
+    data["cast"] = (credits.get("cast") if isinstance(credits, dict) else None) or []
+    data["cast"] = data["cast"][:12]
+
+    # TMDB normally wraps this as {"results": [...]}, but has been observed
+    # to return a bare list for at least one title — handle both shapes.
+    similar_raw = data.get("similar") or []
+    similar_results = similar_raw.get("results", []) if isinstance(similar_raw, dict) else similar_raw
+    data["similar"] = [_decorate_images(tmdb, r) for r in similar_results[:12]]
     return data
 
 
